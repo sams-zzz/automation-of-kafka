@@ -1,0 +1,11 @@
+- name: Supprimer le déploiement Kafka
+  hosts: all
+  gather_facts: false
+  vars:
+    kafka_destroy_volume: false # par défaut on garde les données
+  tasks:
+    - name: Supprimer le conteneur # state absent = « ne doit plus exister »
+    - name: Supprimer le réseau # run_once un seul réseau
+    - name: Supprimer le volume (uniquement sur demande explicite)
+      ...
+      when: kafka_destroy_volume | bool

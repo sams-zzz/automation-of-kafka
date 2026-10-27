@@ -1,0 +1,30 @@
+# on part de l'image java
+FROM {{ kafka_base_image }}
+
+# on install curl pour apres, -y pour dire oui partout, --no-install-recommends on evite les paquets superflus et la derniere ligne est la pour supprimer le cache de APT et alleger l'image
+RUN apt-get update && apt-get install -t --no-install-recommmends curl ca-certificats && rm -rf /var/lib/apt/lists/*
+
+# creer un user non previligie ( le no root privelege ) donc on aura kafka a la place de root
+RUN useradd --system --no-create-home --ome-dir {{ kafka_home }} {{ kafka_user }}
+
+# telecharger une version fixe de kafka, -f:echouer si le serveru repond une erreur, -sS silancieux sauf erreur, -L suivre les redirections
+# installer kafka dans l'image, esnuite on supprime les archives
+RUN curl -fsSL -o /tmp/kafka.tgz "{{ kafka_download_url }}" && mkdir -p {{ kafka_home }} {{ kafka_data_dir }} && tar -xzf /tmp/kafka.tgz -C {{ kafka_home }} --strip-components=1 && rm /tmp/kafka.tgz && chown -R {{ kafka_user }}:{{ kafka_user }} {{ kafka_home }} {{ kafka_data_dir }}
+
+# copier la config de kafka genere "build/kafka-1/server.propreties" dans l'image
+COPY {{ kafka_conatiner_name }}/server.propreties {{ kafka_home }}/config/server.propreties
+
+# les commandes s'executent en tant que "kafka" depuis le dossier /opt/kafka
+USER {{ kafka_user }}
+WORKDIR {{ kafka_home }}
+
+# Volume
+# Indiquer ou stocker les donnees hors container
+VOLUME ["{{ kafka_data_dir }}"]
+
+# exposer les ports necessaires 9092 client et 9093 controlleur
+EXPOSE {{ kafka_conatiner_port }} {{ kafka_controller_port }}
+
+# Demarrage KRaft 
+CMD ["bash", "-c", "bin/kafka-storage.sh format --ignore-formatted -t \"$KAFKA_CLUSTER_ID\" -c config/server.properties && exec bin/kafka-server-start.sh config/server.properties"]
+

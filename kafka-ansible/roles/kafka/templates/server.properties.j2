@@ -1,0 +1,32 @@
+node.id={{ kafka_broker_id }}
+process.roles={{ kafka_process_roles }}
+
+{% if groups['kafka_brokers'] is defined %}
+listeners=PLAINTEXT://:{{ kafka_container_port }},INTERNAL://:{{ kafka_internal_port }},CONTROLLER://:{{ kafka_controller_port }}
+advertised.listeners=PLAINTEXT://localhost:{{ kafka_host_port }},INTERNAL://{{ kafka_container_name }}:{{ kafka_internal_port }}
+
+controller.listener.names=CONTROLLER
+controller.quorum.voters={% for host in groups['kafka_brokers'] %}{{ hostvars[host].kafka_broker_id }}@{{ host }}:{{ kafka_controller_port }}{{ ',' if not loop.last }}{% endfor %}
+
+
+listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+inter.broker.listener.name=INTERNAL
+{% else %}
+listeners=PLAINTEXT://:{{ kafka_container_port }},CONTROLLER://:{{ kafka_controller_port }}
+advertised.listeners=PLAINTEXT://localhost:{{ kafka_host_port }}
+
+controller.listener.names=CONTROLLER
+controller.quorum.voters={{ kafka_broker_id }}@localhost:{{ kafka_controller_port }}
+
+listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+inter.broker.listener.name=PLAINTEXT
+{% endif %}
+
+log.dirs={{ kafka_data_dir }}
+
+num.partitions={{ kafka_num_partitions }}
+default.replication.factor={{ kafka_default_replication_factor }}
+auto.create.topics.enable={{ kafka_auto_create_topics | lower }}
+log.retention.hours={{ kafka_log_retention_hours }}
+
+offsets.topic.replication.factor={{ kafka_default_replication_factor }}

@@ -1,0 +1,9 @@
+- name: Construire et déployer Kafka
+  hosts: all # sur tous les hôtes de l'inventaire
+  gather_facts: false # ne pas collecter d'infos système (inutile ici, plus rapide)
+  roles:
+    - role: kafka  # exécuter le rôle tasks/main.yml, puis les handlers
+
+- name: Vérifier Kafka
+  ansible.builtin.import_playbook: verify.yml
+  tags: [verify] # toute la vérification porte le tag verify

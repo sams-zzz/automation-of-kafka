@@ -1,0 +1,5 @@
+kafka_bootstrap: >-
+  {{ kafka_container_name ~ ':' ~ kafka_internal_port
+     if groups['kafka_brokers'] is defined
+     else 'localhost:' ~ kafka_container_port }}
+

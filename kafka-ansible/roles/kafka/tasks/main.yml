@@ -1,0 +1,69 @@
+# Reseau
+- name: Creer le reseau Docker
+  community.docker.docker_network:
+    name: "{{ kafka_network_name }}"
+    state: present # doit exister
+  run_once: true # car le reseau est unique et partage
+  tags: [network]
+
+# Volume
+- name: Creer le volume Docker
+  community.docker.docker_volume:
+    name: "{{ kafka_volume_name }}"
+    state: present
+    # pas besoin de run once comme le volume est unique a chaque broker
+  tags: [volume]
+
+# Preparer le context de build
+- name: Creer le context de build
+  ansible.builtin.file:
+    path: "{{ kafka_config_dir }}"
+    state: directory
+    mode: "0755" # droit classique d'un dossier rwxr--r--
+  tags: [build, config]
+  
+# Generer les fichiers 
+- name: Générer le Dockerfile
+  ansible.builtin.template:
+    src: Dockerfile.j2 # cherché dans roles/kafka/templates/
+    dest: "{{ kafka_build_dir }}/Dockerfile"    # écrit dans build/
+    mode: "0644"
+  register: kafka_dockerfile # on garde le résultat (a-t-il changé ?)
+  notify: Restart Kafka container # si changé, prévenir le handler
+  run_once: true # un seul Dockerfile pour tous
+  tags: [build]
+  
+# Construire l'image
+- name: Construire l'image Kafka
+  community.docker.docker_image:
+    name: "{{ kafka_image_name }}"
+    tag: "{{ kafka_image_tag }}"
+    source: build # construire (et non télécharger)
+    build:
+      path: "{{ kafka_build_dir }}" # contexte de build = build/
+    force_source: "{{ kafka_dockerfile is defined and kafka_dockerfile is changed }}"
+    state: present
+  run_once: true
+  tags: [image, build]
+  
+- name: Créer et démarrer le conteneur Kafka
+  community.docker.docker_container:
+    name: "{{ kafka_container_name }}"
+    image: "{{ kafka_image_name }}:{{ kafka_image_tag }}"
+    state: started
+    restart_policy: "{{ kafka_restart_policy }}"
+    networks:
+      - name: "{{ kafka_network_name }}"
+    published_ports:
+      - "{{ kafka_host_port }}:{{ kafka_container_port }}"
+    mounts:
+      - type: volume
+        source: "{{ kafka_volume_name }}"
+        target: "{{ kafka_data_dir }}"
+      - type: bind
+        source: "{{ kafka_config_dir }}/server.properties"
+        target: "{{ kafka_home }}/config/server.properties"
+        read_only: true
+    env_file: "{{ kafka_config_dir }}/kafka.env"
+  tags: [container]
+

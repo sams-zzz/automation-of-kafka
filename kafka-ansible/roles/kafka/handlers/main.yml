@@ -1,0 +1,5 @@
+- name: Restart Kafka container
+  community.docker.docker_container:
+    name: "{{ kafka_container_name }}"
+    state: started
+    restart: true
