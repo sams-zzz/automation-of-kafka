@@ -2,10 +2,21 @@
   hosts: all
   gather_facts: false
   vars:
-    kafka_destroy_volume: false # par défaut on garde les données
+    kafka_destroy_volume: false
   tasks:
-    - name: Supprimer le conteneur # state absent = « ne doit plus exister »
-    - name: Supprimer le réseau # run_once un seul réseau
+    - name: Supprimer le conteneur
+      community.docker.docker_container:
+        name: "{{ kafka_container_name }}"
+        state: absent
+
+    - name: Supprimer le réseau
+      community.docker.docker_network:
+        name: "{{ kafka_network_name }}"
+        state: absent
+      run_once: true
+
     - name: Supprimer le volume (uniquement sur demande explicite)
-      ...
+      community.docker.docker_volume:
+        name: "{{ kafka_volume_name }}"
+        state: absent
       when: kafka_destroy_volume | bool
