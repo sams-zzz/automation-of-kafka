@@ -1,5 +1,69 @@
-kafka_bootstrap: >-
-  {{ kafka_container_name ~ ':' ~ kafka_internal_port
-     if groups['kafka_brokers'] is defined
-     else 'localhost:' ~ kafka_container_port }}
+- name: Vérifier Kafka
+  hosts: all
+  gather_facts: false
+  vars:
+    kafka_test_topic: "test-topic"
+    kafka_test_message: "hello-kafka"
+    kafka_bootstrap: "localhost:{{ kafka_container_port }}"
+  tasks:
+    # en --check rien n'est réellement déployé, donc rien à vérifier
+    - name: Ignorer la vérification en mode check
+      ansible.builtin.meta: end_play
+      when: ansible_check_mode
 
+    - name: Récupérer l'état du conteneur
+      community.docker.docker_container_info:
+        name: "{{ kafka_container_name }}"
+      register: kafka_info
+
+    - name: Vérifier que le conteneur Kafka est démarré
+      ansible.builtin.assert:
+        that:
+          - kafka_info.exists
+          - kafka_info.container.State.Running
+        fail_msg: "Le conteneur {{ kafka_container_name }} n'est pas démarré"
+
+    - name: Vérifier que le port Kafka est disponible
+      ansible.builtin.wait_for:
+        host: localhost
+        port: "{{ kafka_host_port }}"
+        timeout: 60
+
+    # retries : le broker peut mettre quelques secondes à être prêt
+    - name: Créer un topic de test
+      community.docker.docker_container_exec:
+        container: "{{ kafka_container_name }}"
+        command: >-
+          bin/kafka-topics.sh --bootstrap-server {{ kafka_bootstrap }}
+          --create --if-not-exists --topic {{ kafka_test_topic }}
+          --partitions {{ kafka_num_partitions }}
+          --replication-factor {{ kafka_default_replication_factor }}
+      register: kafka_topic
+      retries: 10
+      delay: 3
+      until: kafka_topic.rc == 0
+      changed_when: "'Created topic' in kafka_topic.stdout"
+
+    - name: Produire un message
+      community.docker.docker_container_exec:
+        container: "{{ kafka_container_name }}"
+        command: >-
+          bash -c "echo '{{ kafka_test_message }}' |
+          bin/kafka-console-producer.sh --bootstrap-server {{ kafka_bootstrap }}
+          --topic {{ kafka_test_topic }}"
+      changed_when: true
+
+    - name: Consommer le message
+      community.docker.docker_container_exec:
+        container: "{{ kafka_container_name }}"
+        command: >-
+          bin/kafka-console-consumer.sh --bootstrap-server {{ kafka_bootstrap }}
+          --topic {{ kafka_test_topic }} --from-beginning
+          --max-messages 1 --timeout-ms 20000
+      register: kafka_consume
+      changed_when: false
+      failed_when: kafka_test_message not in kafka_consume.stdout
+
+    - name: Afficher le message consommé
+      ansible.builtin.debug:
+        msg: "Message consommé : {{ kafka_consume.stdout }}"

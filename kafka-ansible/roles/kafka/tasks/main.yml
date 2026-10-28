@@ -21,8 +21,25 @@
     state: directory
     mode: "0755" # droit classique d'un dossier rwxr--r--
   tags: [build, config]
-  
-# Generer les fichiers 
+
+# Generer les fichiers
+- name: Générer server.properties
+  ansible.builtin.template:
+    src: server.properties.j2
+    dest: "{{ kafka_config_dir }}/server.properties"
+    mode: "0644"
+  register: kafka_server_properties
+  notify: Restart Kafka container # config changée -> redémarrer
+  tags: [config]
+
+- name: Générer kafka.env
+  ansible.builtin.template:
+    src: kafka.env.j2
+    dest: "{{ kafka_config_dir }}/kafka.env"
+    mode: "0644"
+  notify: Restart Kafka container
+  tags: [config]
+
 - name: Générer le Dockerfile
   ansible.builtin.template:
     src: Dockerfile.j2 # cherché dans roles/kafka/templates/
@@ -41,7 +58,8 @@
     source: build # construire (et non télécharger)
     build:
       path: "{{ kafka_build_dir }}" # contexte de build = build/
-    force_source: "{{ kafka_dockerfile is defined and kafka_dockerfile is changed }}"
+    # reconstruire si le Dockerfile ou la config copiée dans l'image a changé
+    force_source: "{{ (kafka_dockerfile is defined and kafka_dockerfile is changed) or (kafka_server_properties is defined and kafka_server_properties is changed) }}"
     state: present
   run_once: true
   tags: [image, build]
