@@ -1,0 +1,38 @@
+# Généré par Ansible (roles/kafka/templates/docker-compose.yml.j2) : ne pas modifier à la main
+name: {{ kafka_compose_project }}
+
+services:
+{% for host in kafka_compose_hosts %}
+{%   set broker = hostvars[host].kafka_container_name | default(kafka_container_name) %}
+  # un service par broker de l'inventaire
+  {{ broker }}:
+    image: "{{ kafka_image_name }}:{{ kafka_image_tag }}"
+    # l'image est construite par Ansible (docker_image) : compose ne doit ni la construire ni la télécharger
+    pull_policy: never
+    container_name: {{ broker }}
+    hostname: {{ broker }}
+    restart: {{ kafka_restart_policy }}
+    ports:
+      - "{{ hostvars[host].kafka_host_port | default(kafka_host_port) }}:{{ kafka_container_port }}"
+    env_file:
+      - ./{{ broker }}/kafka.env
+    volumes:
+      - {{ hostvars[host].kafka_volume_name | default(kafka_volume_name) }}:{{ kafka_data_dir }}
+      # on monte le dossier et non le fichier : le module template remplace server.properties
+      # par un nouveau fichier, qu'un montage de fichier seul ne verrait plus au redémarrage
+      - ./{{ broker }}:{{ kafka_config_mount_dir }}:ro
+    networks:
+      - {{ kafka_network_name }}
+
+{% endfor %}
+# réseau et volumes créés par Ansible (tags network / volume) : compose les utilise sans les gérer,
+# ainsi "docker compose down" ne supprime jamais les données
+networks:
+  {{ kafka_network_name }}:
+    external: true
+
+volumes:
+{% for host in kafka_compose_hosts %}
+  {{ hostvars[host].kafka_volume_name | default(kafka_volume_name) }}:
+    external: true
+{% endfor %}

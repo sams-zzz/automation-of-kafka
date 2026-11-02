@@ -3,11 +3,21 @@
   gather_facts: false
   vars:
     kafka_destroy_volume: false
+    kafka_build_dir: "{{ playbook_dir | dirname }}/build" # là où deploy.yml a généré docker-compose.yml
   tasks:
-    - name: Supprimer le conteneur
-      community.docker.docker_container:
-        name: "{{ kafka_container_name }}"
+    - name: Vérifier la présence du fichier docker-compose.yml
+      ansible.builtin.stat:
+        path: "{{ kafka_build_dir }}/docker-compose.yml"
+      register: kafka_compose_file
+      run_once: true
+
+    # équivalent de "docker compose down" : supprime les conteneurs, pas le réseau ni les volumes (external)
+    - name: Supprimer les conteneurs (docker compose down)
+      community.docker.docker_compose_v2:
+        project_src: "{{ kafka_build_dir }}"
         state: absent
+      run_once: true
+      when: kafka_compose_file.stat.exists
 
     - name: Supprimer le réseau
       community.docker.docker_network:

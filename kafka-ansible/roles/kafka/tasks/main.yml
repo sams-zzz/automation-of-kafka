@@ -19,7 +19,7 @@
   ansible.builtin.file:
     path: "{{ kafka_config_dir }}"
     state: directory
-    mode: "0755" # droit classique d'un dossier rwxr--r--
+    mode: "0755" # droit classique d'un dossier drwxr-xr-x
   tags: [build, config]
 
 # Generer les fichiers
@@ -64,24 +64,20 @@
   run_once: true
   tags: [image, build]
   
-- name: Créer et démarrer le conteneur Kafka
-  community.docker.docker_container:
-    name: "{{ kafka_container_name }}"
-    image: "{{ kafka_image_name }}:{{ kafka_image_tag }}"
-    state: started
-    restart_policy: "{{ kafka_restart_policy }}"
-    networks:
-      - name: "{{ kafka_network_name }}"
-    published_ports:
-      - "{{ kafka_host_port }}:{{ kafka_container_port }}"
-    mounts:
-      - type: volume
-        source: "{{ kafka_volume_name }}"
-        target: "{{ kafka_data_dir }}"
-      - type: bind
-        source: "{{ kafka_config_dir }}/server.properties"
-        target: "{{ kafka_home }}/config/server.properties"
-        read_only: true
-    env_file: "{{ kafka_config_dir }}/kafka.env"
+# Docker Compose : un seul fichier décrit tous les brokers
+- name: Générer docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ kafka_build_dir }}/docker-compose.yml"
+    mode: "0644"
+  run_once: true # un seul projet compose pour tous les brokers
+  tags: [container]
+
+# compose ne recrée que les services dont la définition ou l'image a changé
+- name: Créer et démarrer les conteneurs Kafka avec Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ kafka_build_dir }}"
+    state: present
+  run_once: true
   tags: [container]
 

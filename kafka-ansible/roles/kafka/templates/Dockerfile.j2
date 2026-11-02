@@ -25,5 +25,8 @@ VOLUME ["{{ kafka_data_dir }}"]
 # exposer les ports necessaires 9092 client et 9093 controlleur
 EXPOSE {{ kafka_container_port }} {{ kafka_controller_port }}
 
+# fichier de config utilise au demarrage : celui de l'image par defaut, surchargeable via kafka.env
+ENV KAFKA_CONFIG_FILE={{ kafka_home }}/config/server.properties
+
 # Demarrage KRaft
-CMD ["bash", "-c", "bin/kafka-storage.sh format --ignore-formatted -t \"$KAFKA_CLUSTER_ID\" -c config/server.properties && exec bin/kafka-server-start.sh config/server.properties"]
+CMD ["bash", "-c", "bin/kafka-storage.sh format --ignore-formatted -t \"$KAFKA_CLUSTER_ID\" -c \"$KAFKA_CONFIG_FILE\" && exec bin/kafka-server-start.sh \"$KAFKA_CONFIG_FILE\""]

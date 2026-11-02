@@ -28,7 +28,20 @@ Tags disponibles : `network`, `volume`, `image`, `build`, `config`, `container`,
 ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --tags config
 ```
 
-Le Dockerfile et la configuration générés se trouvent dans `build/`.
+Le Dockerfile, le `docker-compose.yml` et la configuration de chaque broker sont générés dans `build/`.
+
+Cluster de trois brokers :
+
+```bash
+ansible-playbook -i inventories/cluster/hosts.yml playbooks/deploy.yml
+```
+
+Une fois déployé, le projet peut aussi être inspecté avec Docker Compose :
+
+```bash
+docker compose -f build/docker-compose.yml ps
+docker compose -f build/docker-compose.yml logs -f kafka-2
+```
 
 ## Vérification
 
@@ -48,7 +61,7 @@ ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --check --dif
 ## Destruction
 
 ```bash
-# supprime le conteneur et le réseau (les données sont conservées)
+# supprime les conteneurs (docker compose down) et le réseau (les données sont conservées)
 ansible-playbook -i inventories/dev/hosts.yml playbooks/destroy.yml
 
 # supprime aussi le volume : PERTE DES DONNÉES KAFKA
@@ -65,10 +78,18 @@ ansible-playbook -i inventories/dev/hosts.yml playbooks/destroy.yml -e kafka_des
 - **KRaft** : pas de ZooKeeper ; le stockage est formaté au démarrage avec
   `--ignore-formatted`, ce qui rend le redémarrage sans risque.
 - **Volume Docker** : les données (`log.dirs`) survivent à la recréation du conteneur.
-- **Handler** : le conteneur n'est redémarré que si la configuration ou le Dockerfile change ;
-  l'image n'est reconstruite que dans ce cas (`force_source`).
-- **Configuration montée** : `server.properties` est aussi monté dans le conteneur, ce qui
-  permet d'appliquer une configuration par broker.
+- **Docker Compose** : Ansible génère `build/docker-compose.yml` (template
+  `docker-compose.yml.j2`, un service par broker de l'inventaire) puis l'applique avec
+  `community.docker.docker_compose_v2`. Compose ne recrée que les services modifiés.
+- **Réseau et volumes `external`** : ils restent créés et supprimés par Ansible, si bien que
+  `docker compose down` ne peut pas effacer les données par erreur.
+- **Image construite par Ansible** : `docker_image` construit l'image, compose l'utilise avec
+  `pull_policy: never` ; elle n'est reconstruite que si le Dockerfile ou la config change (`force_source`).
+- **Handler** : `docker compose restart <broker>` ne redémarre que le broker dont la
+  configuration a changé, les autres continuent de tourner.
+- **Configuration montée** : le dossier `build/<broker>/` est monté dans `/etc/kafka` (et non
+  le fichier seul : le module template remplace le fichier, ce qu'un montage de fichier ne voit
+  pas au redémarrage). `KAFKA_CONFIG_FILE` (dans `kafka.env`) indique le fichier à utiliser.
 
 ## Limites
 

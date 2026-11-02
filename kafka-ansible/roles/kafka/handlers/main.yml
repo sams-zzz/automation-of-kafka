@@ -1,5 +1,7 @@
+# ne redémarre que le service du broker dont la configuration a changé
 - name: Restart Kafka container
-  community.docker.docker_container:
-    name: "{{ kafka_container_name }}"
-    state: started
-    restart: true
+  community.docker.docker_compose_v2:
+    project_src: "{{ kafka_build_dir }}"
+    services:
+      - "{{ kafka_container_name }}"
+    state: restarted

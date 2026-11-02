@@ -30,3 +30,8 @@ kafka_data_dir: "/var/lib/kafka/data"
 kafka_restart_policy: "unless-stopped"
 kafka_build_dir: "{{ playbook_dir | dirname }}/build"
 kafka_config_dir: "{{ kafka_build_dir }}/{{ kafka_container_name }}"
+kafka_config_mount_dir: "/etc/kafka" # où le dossier de config du broker est monté dans le conteneur
+
+# Docker Compose : projet unique décrivant tous les brokers, généré dans build/
+kafka_compose_project: "kafka"
+kafka_compose_hosts: "{{ groups['kafka_brokers'] | default([inventory_hostname]) }}"
